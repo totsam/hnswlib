@@ -632,6 +632,98 @@ namespace hnswlib {
             return;
         }
 
+        void addIndex(const std::string &location, SpaceInterface<dist_t> *s, size_t cur_index_elems_count = 0)
+        {
+        	std::ifstream input(location, std::ios::binary);
+
+			// get file size:
+			input.seekg(0,input.end);
+			std::streampos total_filesize=input.tellg();
+			input.seekg(0,input.beg);
+
+			size_t offsetLevel0, max_elements0, cur_element_count;
+
+			readBinaryPOD(input, offsetLevel0);
+			readBinaryPOD(input, max_elements0);
+			readBinaryPOD(input, cur_element_count);
+
+			size_t max_elements=0;
+			if(max_elements < cur_element_count)
+				max_elements = max_elements0;
+			max_elements0 = max_elements;
+
+			size_t size_data_per_element, label_offset, offsetData;
+			int maxlevel;
+			tableint enterpoint_node;
+
+			readBinaryPOD(input, size_data_per_element);
+			readBinaryPOD(input, label_offset);
+			readBinaryPOD(input, offsetData);
+			readBinaryPOD(input, maxlevel);
+			readBinaryPOD(input, enterpoint_node);
+
+			size_t maxM, maxM0, M, ef_construction;
+			double mult;
+
+			readBinaryPOD(input, maxM);
+			readBinaryPOD(input, maxM0);
+			readBinaryPOD(input, M);
+			readBinaryPOD(input, mult);
+			readBinaryPOD(input, ef_construction);
+
+
+			size_t data_size = s->get_data_size();
+			DISTFUNC<dist_t> fstdistfunc = s->get_dist_func();
+			void *dist_func_param = s->get_dist_func_param();
+
+			/// Legacy, check that everything is ok
+
+			bool old_index=false;
+
+			auto pos=input.tellg();
+			input.seekg(cur_element_count * size_data_per_element,input.cur);
+			for (size_t i = 0; i < cur_element_count; i++) {
+				if(input.tellg() < 0 || input.tellg()>=total_filesize){
+					old_index = true;
+					break;
+				}
+
+				unsigned int linkListSize;
+				readBinaryPOD(input, linkListSize);
+				if (linkListSize != 0) {
+					input.seekg(linkListSize,input.cur);
+				}
+			}
+
+			// check if file is ok, if not this is either corrupted or old index
+			if(input.tellg()!=total_filesize)
+				old_index = true;
+
+			if (old_index) {
+				std::cerr << "Warning: loading of old indexes will be deprecated before 2019.\n"
+						  << "Please resave the index in the new format.\n";
+			}
+			input.clear();
+			input.seekg(pos,input.beg);
+
+
+			char *data_level0_memory = (char *) malloc(max_elements * size_data_per_element);
+			input.read(data_level0_memory, cur_element_count * size_data_per_element);
+
+			if (cur_index_elems_count == 0)
+				cur_index_elems_count = max_elements_;
+
+			for (size_t i = 0; i < cur_element_count; i++) {
+
+				labeltype return_label;
+				memcpy(&return_label,(data_level0_memory + i * size_data_per_element + label_offset), sizeof(labeltype));
+
+				char *data_ptr = (data_level0_memory + i * size_data_per_element + offsetData);
+
+				addPoint(reinterpret_cast<void*>(data_ptr), cur_index_elems_count+reinterpret_cast<size_t>(return_label));
+			}
+        }
+
         template<typename data_t>
         std::vector<data_t> getDataByLabel(labeltype label)
         {
