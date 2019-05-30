@@ -724,6 +724,22 @@ namespace hnswlib {
 			}
         }
 
+        char* getDataPtrByLabel(labeltype label)
+		{
+        	char* res_ptr = nullptr;
+			for (size_t i = 0; i < cur_element_count; i++) {
+
+				labeltype return_label;
+				memcpy(&return_label,(data_level0_memory_ + i * size_data_per_element_ + label_offset_), sizeof(labeltype));
+
+				if (return_label == label) {
+					res_ptr = (data_level0_memory_ + i * size_data_per_element_ + offsetData_);
+					break;
+				}
+			}
+			return res_ptr;
+		}
+
         template<typename data_t>
         std::vector<data_t> getDataByLabel(labeltype label)
         {
